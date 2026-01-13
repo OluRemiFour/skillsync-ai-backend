@@ -8,12 +8,10 @@ from app.scrapers.scholarship_scraper import ScholarshipScraper
 
 router = APIRouter()
 
-# In-memory mock DB for demo
-internships_db = []
-
 @router.get("/", response_model=List[Scholarship])
 async def get_internships():
-    return internships_db
+    # Fetch from DB engine when implemented
+    return []
 
 @router.post("/scan", response_model=List[ScholarshipCreate])
 async def trigger_scan(profile: dict):

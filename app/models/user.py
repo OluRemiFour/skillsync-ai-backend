@@ -20,6 +20,11 @@ class User(Model):
     full_name: str
     role: UserRole
     is_active: bool = True
+    is_verified: bool = False
+    otp: Optional[str] = None
+    otp_expires_at: Optional[datetime] = None
+    bio: Optional[str] = None
+    location: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Student Profile Fields

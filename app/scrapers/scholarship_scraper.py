@@ -98,7 +98,8 @@ class ScholarshipScraper:
                     match_score=80
                 ))
         finally:
-            self.driver.quit()
+            if self.driver:
+                self.driver.quit()
             
         return results
 

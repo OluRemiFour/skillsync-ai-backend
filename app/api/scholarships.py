@@ -5,12 +5,10 @@ from app.scrapers.scholarship_scraper import ScholarshipScraper
 
 router = APIRouter()
 
-# In-memory mock DB for demo
-scholarships_db = []
-
 @router.get("/", response_model=List[Scholarship])
 async def get_scholarships():
-    return scholarships_db
+    # Fetch from DB engine when implemented, for now return empty
+    return []
 
 @router.post("/scan", response_model=List[ScholarshipCreate])
 async def trigger_scan(profile: dict):

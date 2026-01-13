@@ -21,9 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api import scholarships, industry, recommendation, internships, communication, auth
+from app.api import scholarships, industry, recommendation, internships, communication, auth, students, matching
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(students.router, prefix="/api/students", tags=["students"])
+app.include_router(matching.router, prefix="/api/matches", tags=["matches"])
 app.include_router(scholarships.router, prefix="/api/scholarships", tags=["scholarships"])
 app.include_router(internships.router, prefix="/api/internships", tags=["internships"])
 app.include_router(industry.router, prefix="/api/industry", tags=["industry"])

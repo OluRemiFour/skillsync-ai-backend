@@ -1,5 +1,5 @@
 from typing import Optional, List
-from odmantic import Model, Field
+from odmantic import Model, Field, EmbeddedModel
 from datetime import datetime
 from enum import Enum
 
@@ -8,10 +8,11 @@ class UserRole(str, Enum):
     INDUSTRY = "industry"
     ADMIN = "admin"
 
-class Skill(Model):
+class Skill(EmbeddedModel):
     name: str
     level: int  # 1-100
     verified: bool = False
+    category: Optional[str] = "General"
 
 class User(Model):
     email: str = Field(unique=True)

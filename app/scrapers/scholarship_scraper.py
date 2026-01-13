@@ -20,9 +20,23 @@ class ScholarshipScraper:
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        # Initialize Chrome with webdriver_manager
-        service = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        
+        # In Docker/Render environments, we might NEED to specify the binary location
+        import os
+        chrome_bin = os.environ.get("GOOGLE_CHROME_BIN")
+        if chrome_bin:
+            chrome_options.binary_location = chrome_bin
+
+        try:
+            # Initialize Chrome with webdriver_manager
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        except Exception as e:
+            logger.error(f"Failed to initialize Selenium: {e}")
+            # Ensure driver is None if initialization fails
+            self.driver = None
         
     def scrape_scholarships_com(self, query: str = "computer science") -> List[ScholarshipCreate]:
         """
@@ -31,6 +45,10 @@ class ScholarshipScraper:
         """
         results = []
         try:
+            if not self.driver:
+                logger.error("Driver not initialized, skipping scrape")
+                raise Exception("Driver not initialized")
+                
             url = f"https://www.scholarships.com/financial-aid/college-scholarships/scholarship-directory/academic-major/{query}"
             logger.info(f"Scraping URL: {url}")
             self.driver.get(url)

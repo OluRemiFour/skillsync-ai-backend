@@ -14,10 +14,12 @@ SECRET_KEY = getattr(settings, "SECRET_KEY", "09d25e094faa6ca2556c818166b7a9563b
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # Bcrypt has a 72-character limit; manually truncate to avoid library errors
+    return pwd_context.verify(plain_password[:72], hashed_password)
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # Bcrypt has a 72-character limit; manually truncate to avoid library errors
+    return pwd_context.hash(password[:72])
 
 def create_access_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     if expires_delta:

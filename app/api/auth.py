@@ -5,6 +5,9 @@ from app.models.user import User, UserRole
 from app.core.security import get_password_hash, verify_password, create_access_token
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,31 +44,41 @@ class ResetPasswordRequest(BaseModel):
 
 @router.post("/register", response_model=Token)
 async def register(user_data: UserCreate, engine: AIOEngine = Depends(get_engine)):
-    if user_data.password != user_data.confirm_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Passwords do not match"
+    logger.info(f"Attempting to register user: {user_data.email}")
+    try:
+        # Test DB connection
+        await engine.client.admin.command('ping')
+        
+        if user_data.password != user_data.confirm_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Passwords do not match"
+            )
+        
+        # Check existing
+        existing_user = await engine.find_one(User, User.email == user_data.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Create user
+        hashed_pw = get_password_hash(user_data.password)
+        new_user = User(
+            email=user_data.email,
+            hashed_password=hashed_pw,
+            full_name=user_data.name,
+            role=user_data.role,
+            is_active=True # Auto-active for now, verification can be a step
         )
-    
-    # Check existing
-    existing_user = await engine.find_one(User, User.email == user_data.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Create user
-    hashed_pw = get_password_hash(user_data.password)
-    new_user = User(
-        email=user_data.email,
-        hashed_password=hashed_pw,
-        full_name=user_data.name,
-        role=user_data.role,
-        is_active=True # Auto-active for now, verification can be a step
-    )
-    
-    await engine.save(new_user)
+        
+        await engine.save(new_user)
+    except Exception as e:
+        logger.error(f"Registration failure for {user_data.email}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
     
     # Generate token
     access_token = create_access_token(subject=str(new_user.id))

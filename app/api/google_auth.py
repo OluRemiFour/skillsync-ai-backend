@@ -72,7 +72,7 @@ async def google_auth(
             logger.info(f"Google login for existing user: {email}")
 
         # Create access token
-        access_token = create_access_token(data={"sub": user.email})
+        access_token = create_access_token(subject=str(user.id))
 
         return {
             "access_token": access_token,

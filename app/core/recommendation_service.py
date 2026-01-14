@@ -31,13 +31,12 @@ class RecommendationService:
         """
         
         try:
-            # Use the synchronous model generate as it's easier to handle without complex async SDK wrappers unless needed
             response = self.client.models.generate_content(
                 model=self.model_id,
                 contents=prompt
             )
             clean_text = response.text.replace('```json', '').replace('```', '').strip()
-            return {"raw_response": clean_text} # Frontend will parse this
+            return {"raw_response": clean_text}
         except Exception as e:
             return {"error": str(e)}
 

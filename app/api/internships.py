@@ -8,10 +8,12 @@ from app.scrapers.scholarship_scraper import ScholarshipScraper
 
 router = APIRouter()
 
+# Mock DB for demo purpose
+internships_db = []
+
 @router.get("/", response_model=List[Scholarship])
 async def get_internships():
-    # Fetch from DB engine when implemented
-    return []
+    return internships_db
 
 @router.post("/scan", response_model=List[ScholarshipCreate])
 async def trigger_scan(profile: dict):
@@ -20,8 +22,12 @@ async def trigger_scan(profile: dict):
     """
     scraper = ScholarshipScraper()
     try:
-        # Run scraper (Reuse scholarship scraper logic but with internship keywords)
-        results = scraper.scrape_scholarships_com(query=f"{profile.get('major', 'software')} internship")
+        import anyio
+        # Run scraper in a thread
+        results = await anyio.to_thread.run_sync(
+            scraper.scrape_scholarships_com, 
+            f"{profile.get('major', 'software')} internship"
+        )
         
         # Save to DB (mock)
         for res in results:

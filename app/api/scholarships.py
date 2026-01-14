@@ -5,10 +5,12 @@ from app.scrapers.scholarship_scraper import ScholarshipScraper
 
 router = APIRouter()
 
+# Mock DB for demo purpose
+scholarships_db = []
+
 @router.get("/", response_model=List[Scholarship])
 async def get_scholarships():
-    # Fetch from DB engine when implemented, for now return empty
-    return []
+    return scholarships_db
 
 @router.post("/scan", response_model=List[ScholarshipCreate])
 async def trigger_scan(profile: dict):
@@ -17,8 +19,9 @@ async def trigger_scan(profile: dict):
     """
     scraper = ScholarshipScraper()
     try:
-        # Run scraper (synchronously for now for demo, should be async/background)
-        results = scraper.run_predator_scan(profile)
+        import anyio
+        # Run scraper in a thread to avoid blocking the event loop
+        results = await anyio.to_thread.run_sync(scraper.run_predator_scan, profile)
         
         # Save to DB (mock)
         for res in results:

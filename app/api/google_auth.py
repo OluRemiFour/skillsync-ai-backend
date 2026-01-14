@@ -12,9 +12,11 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+from typing import Optional
+
 class GoogleAuthRequest(BaseModel):
     id_token: str
-    role: str # 'student' or 'industry'
+    role: Optional[str] = None # 'student' or 'industry'
 
 @router.post("/google")
 async def google_auth(
@@ -41,6 +43,13 @@ async def google_auth(
         user = await engine.find_one(User, User.email == email)
 
         if not user:
+            # If user doesn't exist, we MUST have a role to create them
+            if not auth_data.role:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="ROLE_REQUIRED"
+                )
+            
             # Create new user
             user = User(
                 email=email,
@@ -53,8 +62,11 @@ async def google_auth(
             await engine.save(user)
             logger.info(f"Created new Google user: {email}")
         else:
-            # Update role if it's a new login but user exists? 
-            # Usually we stick to existing role, but we can update avatar
+            # Update role only if provided and different? 
+            # Or just ignore role if they already exist
+            if auth_data.role and user.role != auth_data.role:
+                user.role = auth_data.role
+            
             user.avatar = picture
             await engine.save(user)
             logger.info(f"Google login for existing user: {email}")

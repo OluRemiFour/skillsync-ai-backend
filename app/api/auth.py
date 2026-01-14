@@ -8,6 +8,7 @@ from typing import Optional, List
 import logging
 import random
 from datetime import datetime, timedelta
+from app.core.email_service import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,8 @@ async def register(user_data: UserCreate, engine: AIOEngine = Depends(get_engine
             otp_expires_at=expiry
         )
         
-        logger.info(f"Generated OTP for {user_data.email}: {otp}") # In real app, send via email
+        logger.info(f"Generated OTP for {user_data.email}: {otp}")
+        await email_service.send_otp_email(user_data.email, otp)
         await engine.save(new_user)
     except Exception as e:
         logger.error(f"Registration failure for {user_data.email}: {str(e)}")
@@ -186,7 +188,8 @@ async def send_otp(request: ForgotPasswordRequest, engine: AIOEngine = Depends(g
     user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
     await engine.save(user)
     
-    logger.info(f"Resent OTP for {user.email}: {otp}")
+    logger.info(f"Resent OTP for {user_data.email}: {otp}")
+    await email_service.send_otp_email(user.email, otp)
     return {"message": "OTP sent successfully"}
 
 @router.post("/verify-otp")

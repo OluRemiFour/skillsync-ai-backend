@@ -1,16 +1,16 @@
-import google.generativeai as genai
+from genai import Client
 from app.core.config import settings
 
 class RecommendationService:
     def __init__(self):
         if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-pro')
+            self.client = Client(api_key=settings.GEMINI_API_KEY)
+            self.model_id = 'gemini-1.5-flash' # Upgrading to a more modern model as well
         else:
-            self.model = None
+            self.client = None
 
     async def generate_learning_path(self, skills: list[str], goal: str):
-        if not self.model:
+        if not self.client:
             return {
                 "error": "AI Service not configured",
                 "path": []
@@ -31,7 +31,11 @@ class RecommendationService:
         """
         
         try:
-            response = await self.model.generate_content_async(prompt)
+            # Use the synchronous model generate as it's easier to handle without complex async SDK wrappers unless needed
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                contents=prompt
+            )
             clean_text = response.text.replace('```json', '').replace('```', '').strip()
             return {"raw_response": clean_text} # Frontend will parse this
         except Exception as e:

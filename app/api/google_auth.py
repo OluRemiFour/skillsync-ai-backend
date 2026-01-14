@@ -83,6 +83,9 @@ async def google_auth(
             "is_verified": user.is_verified
         }
 
+    except HTTPException as e:
+        # Propagate HTTP exceptions (like ROLE_REQUIRED)
+        raise e
     except ValueError as e:
         logger.error(f"Google token verification failed: {str(e)}")
         raise HTTPException(
@@ -93,5 +96,5 @@ async def google_auth(
         logger.error(f"Google auth error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error during Google auth",
+            detail=f"Internal server error during Google auth: {str(e)}",
         )

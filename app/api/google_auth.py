@@ -53,7 +53,7 @@ async def google_auth(
             # Create new user
             user = User(
                 email=email,
-                name=name,
+                full_name=name,
                 role=auth_data.role,
                 is_verified=True, # Google users are pre-verified
                 avatar=picture,
@@ -78,7 +78,7 @@ async def google_auth(
             "access_token": access_token,
             "token_type": "bearer",
             "user_id": str(user.id),
-            "name": user.name,
+            "name": user.full_name,
             "role": user.role,
             "is_verified": user.is_verified
         }

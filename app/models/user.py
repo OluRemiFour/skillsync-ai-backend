@@ -25,6 +25,7 @@ class User(Model):
     otp_expires_at: Optional[datetime] = None
     bio: Optional[str] = None
     location: Optional[str] = None
+    avatar: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Student Profile Fields

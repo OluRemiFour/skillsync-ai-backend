@@ -1,11 +1,11 @@
-from genai import Client
+from google import genai
 from app.core.config import settings
 
 class RecommendationService:
     def __init__(self):
         if settings.GEMINI_API_KEY:
-            self.client = Client(api_key=settings.GEMINI_API_KEY)
-            self.model_id = 'gemini-1.5-flash' # Upgrading to a more modern model as well
+            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            self.model_id = 'gemini-1.5-flash' 
         else:
             self.client = None
 

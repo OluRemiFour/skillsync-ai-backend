@@ -22,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api import scholarships, industry, recommendation, internships, communication, auth, students, matching
+from app.api import scholarships, industry, recommendation, internships, communication, auth, students, matching, google_auth
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(students.router, prefix="/api/students", tags=["students"])
@@ -32,6 +32,7 @@ app.include_router(internships.router, prefix="/api/internships", tags=["interns
 app.include_router(industry.router, prefix="/api/industry", tags=["industry"])
 app.include_router(recommendation.router, prefix="/api/recommendation", tags=["recommendation"])
 app.include_router(communication.router, prefix="/api/communication", tags=["communication"])
+app.include_router(google_auth.router, prefix="/api/auth", tags=["google-auth"])
 
 @app.get("/")
 async def root():

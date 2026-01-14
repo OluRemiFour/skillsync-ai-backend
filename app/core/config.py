@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = ""
+    GOOGLE_CLIENT_ID: str = ""
 
     class Config:
         env_file = ".env"

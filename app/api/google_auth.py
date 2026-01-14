@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.models.user import User, UserRole
 from app.api.auth import create_access_token
 from odmantic import AIOEngine
-from app.db.mongodb import get_engine
+from app.db import get_engine
 import logging
 
 router = APIRouter()

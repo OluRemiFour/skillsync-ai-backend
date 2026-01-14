@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends, Body
+from fastapi import APIRouter, HTTPException, status, Depends, Body, BackgroundTasks
 from app.db import get_engine
 from odmantic import AIOEngine
 from app.models.user import User, UserRole

@@ -30,7 +30,8 @@ class EmailService:
             '''
         )
         try:
-            response = self.client.send(message)
+            import anyio
+            response = await anyio.to_thread.run_sync(self.client.send, message)
             return response.status_code == 202
         except Exception as e:
             print(f"Error sending email: {e}")

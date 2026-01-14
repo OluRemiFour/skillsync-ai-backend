@@ -77,7 +77,7 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: str
 
 @router.post("/register", response_model=Token)
-async def register(user_data: UserCreate, engine: AIOEngine = Depends(get_engine)):
+async def register(user_data: UserCreate, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
     logger.info(f"Attempting to register user: {user_data.email}")
     try:
         # Test DB connection
@@ -116,7 +116,7 @@ async def register(user_data: UserCreate, engine: AIOEngine = Depends(get_engine
         )
         
         logger.info(f"Generated OTP for {user_data.email}: {otp}")
-        await email_service.send_otp_email(user_data.email, otp)
+        background_tasks.add_task(email_service.send_otp_email, user_data.email, otp)
         await engine.save(new_user)
     except Exception as e:
         logger.error(f"Registration failure for {user_data.email}: {str(e)}")
@@ -178,7 +178,7 @@ async def reset_password(request: ResetPasswordRequest, engine: AIOEngine = Depe
     return {"message": "Password has been reset successfully"}
 
 @router.post("/send-otp")
-async def send_otp(request: ForgotPasswordRequest, engine: AIOEngine = Depends(get_engine)):
+async def send_otp(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
     user = await engine.find_one(User, User.email == request.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -188,8 +188,8 @@ async def send_otp(request: ForgotPasswordRequest, engine: AIOEngine = Depends(g
     user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
     await engine.save(user)
     
-    logger.info(f"Resent OTP for {user_data.email}: {otp}")
-    await email_service.send_otp_email(user.email, otp)
+    logger.info(f"Resent OTP for {user.email}: {otp}")
+    background_tasks.add_task(email_service.send_otp_email, user.email, otp)
     return {"message": "OTP sent successfully"}
 
 @router.post("/verify-otp")

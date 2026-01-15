@@ -85,3 +85,6 @@ async def trigger_scan(profile: dict):
                 print(f"Gemini scholarship scan failed: {ai_error}")
 
         return []
+    except Exception as e:
+        print(f"Error in scan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

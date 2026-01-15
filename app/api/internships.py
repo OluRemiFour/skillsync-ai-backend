@@ -18,23 +18,42 @@ async def get_internships():
 @router.post("/scan", response_model=List[ScholarshipCreate])
 async def trigger_scan(profile: dict):
     """
-    Triggers the scraper to find internships.
+    Triggers the scraper to find internships based on profile.
     """
-    scraper = ScholarshipScraper()
+    from app.scrapers.internship_scraper import InternshipScraper
+    scraper = InternshipScraper()
+    
     try:
         import anyio
+        
+        # Construct a better query
+        skills = profile.get('skills', [])
+        major = profile.get('major', '')
+        query_terms = [major]
+        if skills and isinstance(skills, list):
+             query_terms.extend(skills[:2]) # Top 2 skills
+        
+        query = " ".join([q for q in query_terms if q])
+        if not query: query = "software engineering"
+
         # Run scraper in a thread
         results = await anyio.to_thread.run_sync(
-            scraper.scrape_scholarships_com, 
-            f"{profile.get('major', 'software')} internship"
+            scraper.scrape_internships, 
+            query
         )
         
-        # Save to DB (mock)
+        # Save to DB (mock in-memory for now, real DB later)
+        if not results:
+             # Fallback if no results found
+             return []
+
         for res in results:
-            # Convert to DB model with ID
-            db_item = Scholarship(**res.dict(), id=len(internships_db)+1)
-            internships_db.append(db_item)
+            # Simple dedup check based on URL
+            if not any(existing.url == res.url for existing in internships_db):
+                db_item = Scholarship(**res.dict(), id=len(internships_db)+1)
+                internships_db.append(db_item)
             
         return results
     except Exception as e:
+        print(f"Error in scan: {e}") # Debug print
         raise HTTPException(status_code=500, detail=str(e))

@@ -13,6 +13,8 @@ class Skill(EmbeddedModel):
     level: int  # 1-100
     verified: bool = False
     category: Optional[str] = "General"
+    verification_url: Optional[str] = None
+    certification_name: Optional[str] = None
 
 class User(Model):
     email: str = Field(unique=True)

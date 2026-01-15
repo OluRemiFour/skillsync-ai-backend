@@ -51,6 +51,8 @@ class SkillUpdate(BaseModel):
     name: str
     level: int
     category: str
+    verification_url: Optional[str] = None
+    certification_name: Optional[str] = None
 
 class ProfileUpdate(BaseModel):
     bio: Optional[str] = None
@@ -158,14 +160,18 @@ async def login(login_data: UserLogin, engine: AIOEngine = Depends(get_engine)):
     }
 
 @router.post("/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest, engine: AIOEngine = Depends(get_engine)):
+async def forgot_password(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
     user = await engine.find_one(User, User.email == request.email)
     if not user:
-        # Don't reveal if user exists
+        # Don't reveal if user exists for security
         return {"message": "If this email is registered, you will receive password reset instructions."}
     
-    # TODO: Implement actual email sending
-    # For now, we simulate success
+    # Generate a short-lived reset token (15 mins)
+    reset_token = create_access_token(subject=str(user.id), expires_delta=timedelta(minutes=15))
+    
+    # Send email
+    background_tasks.add_task(email_service.send_password_reset_email, user.email, reset_token)
+    
     return {"message": "If this email is registered, you will receive password reset instructions."}
 
 @router.post("/reset-password")
@@ -173,9 +179,27 @@ async def reset_password(request: ResetPasswordRequest, engine: AIOEngine = Depe
     if request.new_password != request.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
         
-    # TODO: Verify token and update password
-    # This is a stub implementation
-    return {"message": "Password has been reset successfully"}
+    try:
+        from app.core.security import SECRET_KEY, ALGORITHM
+        from jose import jwt
+        from odmantic import ObjectId
+        
+        payload = jwt.decode(request.token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Invalid reset token")
+            
+        user = await engine.find_one(User, User.id == ObjectId(user_id))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        user.hashed_password = get_password_hash(request.new_password)
+        await engine.save(user)
+        
+        return {"message": "Password has been reset successfully"}
+    except Exception as e:
+        logger.error(f"Password reset failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
 # @router.post("/send-otp")
 # async def send_otp(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
@@ -253,7 +277,15 @@ async def update_profile(data: ProfileUpdate, user_id: str, engine: AIOEngine = 
     
     if data.skills is not None:
         from app.models.user import Skill
-        user.skills = [Skill(name=s.name, level=s.level, category=s.category) for s in data.skills]
+        user.skills = [
+            Skill(
+                name=s.name, 
+                level=s.level, 
+                category=s.category,
+                verification_url=s.verification_url,
+                certification_name=s.certification_name
+            ) for s in data.skills
+        ]
         
     if data.company_name is not None: user.company_name = data.company_name
     if data.company_url is not None: user.company_url = data.company_url
@@ -322,7 +354,15 @@ async def get_profile(user_id: str, engine: AIOEngine = Depends(get_engine)):
         major=user.major,
         gpa=user.gpa,
         graduation_year=user.graduation_year,
-        skills=[SkillUpdate(name=s.name, level=s.level, category=s.category) for s in user.skills] if user.skills else [],
+        skills=[
+            SkillUpdate(
+                name=s.name, 
+                level=s.level, 
+                category=s.category,
+                verification_url=s.verification_url,
+                certification_name=s.certification_name
+            ) for s in user.skills
+        ] if user.skills else [],
         company_name=user.company_name,
         company_url=user.company_url,
         industry_type=user.industry_type

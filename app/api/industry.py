@@ -58,7 +58,6 @@ async def get_dashboard_metrics(engine: AIOEngine = Depends(get_engine)):
 
 @router.post("/roles", response_model=Role)
 async def create_role(role: Role, engine: AIOEngine = Depends(get_engine)):
-    # In a real app, we'd verify the user is INDUSTRY type via auth token
     await engine.save(role)
     return role
 

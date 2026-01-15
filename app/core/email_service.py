@@ -68,4 +68,64 @@ class EmailService:
             print(f"Error sending reset email: {e}")
             return False
 
+    async def send_general_email(self, to_email: str, subject: str, student_name: str, content: str):
+        if not self.client or not self.from_email:
+            print(f"Email service not configured. Message to {to_email}: {content}")
+            return True # Pretend success for dev
+
+        message = Mail(
+            from_email=self.from_email,
+            to_emails=to_email,
+            subject=subject,
+            html_content=f'''
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <h2 style="color: #4F46E5;">Message from SkillSync Recruiter</h2>
+                    <p style="font-size: 16px; color: #374151;">Hello {student_name},</p>
+                    <div style="background-color: #F3F4F6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p style="font-size: 16px; color: #111827; white-space: pre-line;">{content}</p>
+                    </div>
+                    <p style="font-size: 14px; color: #6B7280;">Log in to your dashboard to reply.</p>
+                </div>
+            '''
+        )
+        try:
+            import anyio
+            response = await anyio.to_thread.run_sync(self.client.send, message)
+            return response.status_code == 202
+        except Exception as e:
+            print(f"Error sending general email: {e}")
+            return False
+
+    async def send_interview_email(self, to_email: str, student_name: str, date: str, time: str, invite_type: str, notes: str):
+        if not self.client or not self.from_email:
+            print(f"Email service not configured. Interview for {to_email} on {date}")
+            return True
+
+        message = Mail(
+            from_email=self.from_email,
+            to_emails=to_email,
+            subject='SkillSync Interview Invitation',
+            html_content=f'''
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <h2 style="color: #4F46E5; text-align: center;">Interview Invitation</h2>
+                    <p style="font-size: 16px; color: #374151;">Hello {student_name},</p>
+                    <p style="font-size: 16px; color: #374151;">You have been invited for an interview!</p>
+                    <div style="background-color: #F3F4F6; padding: 20px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Date:</strong> {date}</p>
+                        <p><strong>Time:</strong> {time}</p>
+                        <p><strong>Type:</strong> {invite_type}</p>
+                        {f"<p><strong>Notes:</strong> {notes}</p>" if notes else ""}
+                    </div>
+                    <p style="font-size: 14px; color: #6B7280; text-align: center;">Please confirm your availability by replying to this email or via the dashboard.</p>
+                </div>
+            '''
+        )
+        try:
+            import anyio
+            response = await anyio.to_thread.run_sync(self.client.send, message)
+            return response.status_code == 202
+        except Exception as e:
+            print(f"Error sending interview email: {e}")
+            return False
+
 email_service = EmailService()

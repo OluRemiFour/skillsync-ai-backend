@@ -42,41 +42,55 @@ async def get_dashboard_metrics(engine: AIOEngine = Depends(get_engine)):
             {"id": 3, "user": "Mike Kim", "action": "accepted interview invite", "target": "", "time": "Yesterday", "initials": "MK", "color": "purple"}
         ]
 
+    # Calculate Skill Aggregations from DB
+    students = await engine.find(User, User.role == UserRole.STUDENT)
+    skill_counts = {}
+    category_counts = {}
+    
+    for student in students:
+        for skill in student.skills:
+            skill_counts[skill.name] = skill_counts.get(skill.name, 0) + 1
+            cat = skill.category or "General"
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+            
+    # Format Top Skills
+    sorted_skills = sorted(skill_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_skills_formatted = [
+        {"skill": name, "demand": int((count / max(1, len(students))) * 100)} 
+        for name, count in sorted_skills
+    ]
+    
+    # Format Skill Distribution
+    skill_dist_formatted = [
+        {"category": cat, "count": count}
+        for cat, count in category_counts.items()
+    ]
+
     return {
         "totalStudents": total_students,
         "activeRoles": active_roles,
-        "matchesThisWeek": 12 + applied_count, # Mocked growth
-        "avgMatchScore": 84,
-        "topSkills": [
-            {"skill": "React", "demand": 95},
-            {"skill": "TypeScript", "demand": 88},
-            {"skill": "Python", "demand": 85},
-            {"skill": "Node.js", "demand": 82},
-            {"skill": "AWS", "demand": 78}
+        "matchesThisWeek": applied_count, 
+        "avgMatchScore": 84, # Calculated periodically in real scenario
+        "topSkills": top_skills_formatted if top_skills_formatted else [
+            {"skill": "React", "demand": 0},
+            {"skill": "Python", "demand": 0}
         ],
         "recentMatches": [
-            {"student": "Alexandra Rivera", "role": "Senior Frontend Engineer", "score": 92, "company": "TechFlow"},
-            {"student": "Marcus Chen", "role": "Full Stack Developer", "score": 88, "company": "DataShift"},
-            {"student": "Samantha Park", "role": "DevOps Engineer", "score": 91, "company": "CloudTech"}
+            # In production: Fetch recent successful matches
         ],
         "matchTrend": [
-            {"date": "Mon", "matches": 5},
-            {"date": "Tue", "matches": 8},
-            {"date": "Wed", "matches": 12},
-            {"date": "Thu", "matches": 10},
-            {"date": "Fri", "matches": 7}
+            {"date": "Mon", "matches": 0},
+            {"date": "Tue", "matches": 0},
+            {"date": "Wed", "matches": 0},
+            {"date": "Thu", "matches": 0},
+            {"date": "Fri", "matches": applied_count}
         ],
-        "skillDistribution": [
-            {"category": "Technical", "count": 156},
-            {"category": "Soft Skills", "count": 89},
-            {"category": "Design", "count": 45},
-            {"category": "Cloud", "count": 67}
-        ],
+        "skillDistribution": skill_dist_formatted,
         "hiringPipeline": {
-            "applied": max(142, applied_count), # Using base + new
-            "message": max(45, message_count),
-            "interviewing": max(12, interviewing_count),
-            "offers": max(3, offers_count)
+            "applied": applied_count,
+            "message": message_count,
+            "interviewing": interviewing_count,
+            "offers": offers_count
         },
         "recentActivity": recent_activity
     }

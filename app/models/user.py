@@ -31,6 +31,7 @@ class User(Model):
     # Student Profile Fields
     university: Optional[str] = None
     major: Optional[str] = None
+    gpa: Optional[float] = None
     graduation_year: Optional[int] = None
     skills: List[Skill] = []
     

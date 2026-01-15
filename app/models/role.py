@@ -22,4 +22,10 @@ class Role(Model):
     
     # Matching criteria
     required_skills: List[str] = []
+    preferred_skills: List[str] = []
     min_experience_years: int = 0
+    
+    # Display fields
+    seniority: str = "Mid-Level"
+    industry: str = "Technology"
+    experience: str = "0-2 years" # String representation for display flexibility

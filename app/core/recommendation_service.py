@@ -5,7 +5,7 @@ class RecommendationService:
     def __init__(self):
         if settings.GEMINI_API_KEY:
             self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-            self.model_id = 'gemini-1.5-flash' 
+            self.model_id = 'gemini-2.0-flash-exp'
         else:
             self.client = None
 

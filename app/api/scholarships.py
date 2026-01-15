@@ -32,43 +32,56 @@ async def trigger_scan(profile: dict):
         # Default simple query
         query = f"scholarships for {major} students"
         
-        # Try to use Gemini for better query generation
         if settings.GEMINI_API_KEY:
             try:
                 from google import genai
+                from google.genai import types
+                
                 client = genai.Client(api_key=settings.GEMINI_API_KEY)
                 
-                skill_text = ", ".join(skills[:5]) if skills else "general"
                 prompt = (
-                    f"Create a specific, effective Google Search query to find current scholarships "
-                    f"for a university student majoring in {major} with interests in {skill_text}. "
-                    f"Return ONLY the raw query string. Do not use quotes."
+                    f"Search for 5 current scholarships due soon for a student studying {major} "
+                    f"with interests in {', '.join(skills)}. "
+                    f"Return a JSON list of objects with these exact keys: "
+                    f"'title', 'provider', 'amount', 'link', 'deadline', 'description'. "
                 )
                 
                 response = client.models.generate_content(
                     model="gemini-2.0-flash-exp", 
-                    contents=prompt
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        response_mime_type="application/json"
+                    )
                 )
                 
                 if response.text:
-                    query = response.text.strip()
-                    # Inject query into profile so scraper uses it
-                    profile['ai_query'] = query
-            except Exception as ai_error:
-                print(f"Gemini query generation failed: {ai_error}")
+                    import json
+                    results_json = json.loads(response.text)
+                    
+                    # Convert JSON to Scholarship objects
+                    results = []
+                    for item in results_json:
+                        db_item = ScholarshipCreate(
+                            title=item.get('title', 'Unknown Scholarship'),
+                            provider=item.get('provider', 'Various'),
+                            amount=str(item.get('amount', 'Varies')),
+                            url=item.get('link', '#'),
+                            description=item.get('description', ''),
+                            deadline=item.get('deadline', 'Rolling'),
+                            match_score=90
+                        )
+                        results.append(db_item)
 
-        print(f"Scanning for scholarships with query: {query}")
-
-        # Run scraper in a thread
-        results = await anyio.to_thread.run_sync(scraper.run_predator_scan, profile)
-        
-        # Save to DB (mock)
-        for res in results:
-            if not any(existing.url == res.url for existing in scholarships_db):
-                db_item = Scholarship(**res.dict(), id=len(scholarships_db)+1)
-                scholarships_db.append(db_item)
+                    # Save to DB
+                    for res in results:
+                        if not any(existing.url == res.url for existing in scholarships_db):
+                            db_item = Scholarship(**res.dict(), id=len(scholarships_db)+1)
+                            scholarships_db.append(db_item)
             
-        return results
-    except Exception as e:
-        print(f"Error in scan: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+                    return results
+
+            except Exception as ai_error:
+                print(f"Gemini scholarship scan failed: {ai_error}")
+
+        return []

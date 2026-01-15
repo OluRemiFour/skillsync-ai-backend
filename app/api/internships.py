@@ -35,42 +35,66 @@ async def trigger_scan(profile: dict):
         # Default simple query
         query = f"internships for {major} students"
         
-        # Try to use Gemini for better query generation
         if settings.GEMINI_API_KEY:
             try:
                 from google import genai
+                from google.genai import types
+                
                 client = genai.Client(api_key=settings.GEMINI_API_KEY)
                 
-                skill_text = ", ".join(skills[:5]) if skills else "general skills"
                 prompt = (
-                    f"Create a specific, effective Google Search query to find current internship openings "
-                    f"for a university student majoring in {major} with skills in {skill_text}. "
-                    f"Return ONLY the raw query string (e.g. 'Software Engineering internships python remote'). "
-                    f"Do not use quotes or explanations."
+                    f"Search for 5 current scholarships and internships for a student studying {major} "
+                    f"with skills in {', '.join(skills)}. "
+                    f"Return a JSON list of objects with these exact keys: "
+                    f"'title', 'details', 'link', 'location', 'type', 'deadline'. "
+                    f"'type' must be either 'Remote', 'Onsite', or 'Hybrid'."
                 )
                 
                 response = client.models.generate_content(
-                    model="gemini-2.0-flash-exp", 
-                    contents=prompt
+                    model="gemini-2.0-flash-exp",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        response_mime_type="application/json"
+                    )
                 )
                 
                 if response.text:
-                    query = response.text.strip()
+                    import json
+                    results_json = json.loads(response.text)
+                    
+                    # Convert JSON results to Scholarship/Internship objects
+                    results = []
+                    for item in results_json:
+                        # Map fields to our schema
+                        obj = ScholarshipCreate(
+                            title=item.get('title', 'Untitled Opportunity'),
+                            provider=item.get('location', 'Unknown Provider'),
+                            amount=item.get('type', 'N/A'), # Using amount field for Type temporarily
+                            url=item.get('link', '#'),
+                            description=f"{item.get('details', '')} | Deadline: {item.get('deadline', 'N/A')}",
+                            deadline=item.get('deadline'), # Assuming model has this field
+                            match_score=85 # Default high score for AI matches
+                        )
+                        results.append(obj)
+                    
+                    # Save to DB
+                    for res in results:
+                         if not any(existing.url == res.url for existing in internships_db):
+                            db_item = Scholarship(**res.dict(), id=len(internships_db)+1)
+                            internships_db.append(db_item)
+                            
+                    return results
+
             except Exception as ai_error:
-                print(f"Gemini query generation failed: {ai_error}, falling back to simple query.")
-                # Fallback logic
-                query_terms = [major, "internship"]
-                if skills and isinstance(skills, list):
-                    query_terms.extend(skills[:2])
-                query = " ".join([str(q) for q in query_terms if q])
+                print(f"Gemini scan failed: {ai_error}")
+                # Fallback to empty list or basic search if needed
+                pass
 
-        print(f"Scraping with query: {query}")
-
-        # Run scraper in a thread
-        results = await anyio.to_thread.run_sync(
-            scraper.scrape_internships, 
-            query
-        )
+        # Old scraper fallback if AI fails or returns nothing (optional, removed for now per request)
+        # results = await anyio.to_thread.run_sync(scraper.scrape_internships, query)
+        
+        return []
         
         # Save to DB (mock in-memory for now, real DB later)
         if not results:

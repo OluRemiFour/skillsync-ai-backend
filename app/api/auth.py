@@ -266,3 +266,64 @@ async def update_profile(data: ProfileUpdate, user_id: str, engine: AIOEngine = 
 async def verify_email_token(token: str):
     # Keep this for backward compatibility if needed, but we use OTP now
     return {"message": "Please use OTP verification"}
+
+class UserProfile(BaseModel):
+    id: str
+    email: str
+    name: str
+    role: str
+    is_verified: bool
+    is_profile_complete: bool
+    bio: Optional[str] = None
+    location: Optional[str] = None
+    avatar: Optional[str] = None
+    
+    # Student fields
+    university: Optional[str] = None
+    major: Optional[str] = None
+    gpa: Optional[float] = None
+    graduation_year: Optional[int] = None
+    skills: Optional[List[SkillUpdate]] = None
+    
+    # Industry fields
+    company_name: Optional[str] = None
+    company_url: Optional[str] = None
+    industry_type: Optional[str] = None
+
+@router.get("/profile", response_model=UserProfile)
+async def get_profile(user_id: str, engine: AIOEngine = Depends(get_engine)):
+    from odmantic import ObjectId
+    try:
+        user = await engine.find_one(User, User.id == ObjectId(user_id))
+    except:
+        raise HTTPException(status_code=400, detail="Invalid User ID format")
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Check completion
+    missing = []
+    if user.role == UserRole.STUDENT:
+        if not user.university: missing.append("university")
+    elif user.role == UserRole.INDUSTRY:
+        if not user.company_name: missing.append("company_name")
+        
+    return UserProfile(
+        id=str(user.id),
+        email=user.email,
+        name=user.full_name,
+        role=user.role,
+        is_verified=user.is_verified,
+        is_profile_complete=len(missing) == 0,
+        bio=user.bio,
+        location=user.location,
+        avatar=user.avatar,
+        university=user.university,
+        major=user.major,
+        gpa=user.gpa,
+        graduation_year=user.graduation_year,
+        skills=[SkillUpdate(name=s.name, level=s.level, category=s.category) for s in user.skills] if user.skills else [],
+        company_name=user.company_name,
+        company_url=user.company_url,
+        industry_type=user.industry_type
+    )

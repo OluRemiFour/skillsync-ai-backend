@@ -100,9 +100,9 @@ async def register(user_data: UserCreate, background_tasks: BackgroundTasks, eng
         # Create user
         hashed_pw = get_password_hash(user_data.password)
         
-        # Generate OTP
-        otp = str(random.randint(100000, 999999))
-        expiry = datetime.utcnow() + timedelta(minutes=10)
+        # OTP Generation Disabled
+        # otp = str(random.randint(100000, 999999))
+        # expiry = datetime.utcnow() + timedelta(minutes=10)
         
         new_user = User(
             email=user_data.email,
@@ -110,13 +110,13 @@ async def register(user_data: UserCreate, background_tasks: BackgroundTasks, eng
             full_name=user_data.name,
             role=user_data.role,
             is_active=True,
-            is_verified=False,
-            otp=otp,
-            otp_expires_at=expiry
+            is_verified=True, # Auto-verify
+            # otp=otp,
+            # otp_expires_at=expiry
         )
         
-        logger.info(f"Generated OTP for {user_data.email}: {otp}")
-        background_tasks.add_task(email_service.send_otp_email, user_data.email, otp)
+        # logger.info(f"Generated OTP for {user_data.email}: {otp}")
+        # background_tasks.add_task(email_service.send_otp_email, user_data.email, otp)
         await engine.save(new_user)
     except Exception as e:
         logger.error(f"Registration failure for {user_data.email}: {str(e)}")
@@ -154,7 +154,7 @@ async def login(login_data: UserLogin, engine: AIOEngine = Depends(get_engine)):
         "user_id": str(user.id),
         "role": user.role,
         "name": user.full_name,
-        "is_verified": user.is_verified
+        "is_verified": True # Force true for existing users logging in
     }
 
 @router.post("/forgot-password")
@@ -177,42 +177,42 @@ async def reset_password(request: ResetPasswordRequest, engine: AIOEngine = Depe
     # This is a stub implementation
     return {"message": "Password has been reset successfully"}
 
-@router.post("/send-otp")
-async def send_otp(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
-    user = await engine.find_one(User, User.email == request.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    otp = str(random.randint(100000, 999999))
-    user.otp = otp
-    user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
-    await engine.save(user)
-    
-    logger.info(f"Resent OTP for {user.email}: {otp}")
-    background_tasks.add_task(email_service.send_otp_email, user.email, otp)
-    return {"message": "OTP sent successfully"}
+# @router.post("/send-otp")
+# async def send_otp(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, engine: AIOEngine = Depends(get_engine)):
+#     user = await engine.find_one(User, User.email == request.email)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     
+#     otp = str(random.randint(100000, 999999))
+#     user.otp = otp
+#     user.otp_expires_at = datetime.utcnow() + timedelta(minutes=10)
+#     await engine.save(user)
+#     
+#     logger.info(f"Resent OTP for {user.email}: {otp}")
+#     background_tasks.add_task(email_service.send_otp_email, user.email, otp)
+#     return {"message": "OTP sent successfully"}
 
-@router.post("/verify-otp")
-async def verify_otp(data: OTPVerify, engine: AIOEngine = Depends(get_engine)):
-    user = await engine.find_one(User, User.email == data.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    if user.is_verified:
-        return {"message": "User already verified"}
-        
-    if not user.otp or user.otp != data.otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
-    
-    if not user.otp_expires_at or user.otp_expires_at < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="OTP expired")
-    
-    user.is_verified = True
-    user.otp = None
-    user.otp_expires_at = None
-    await engine.save(user)
-    
-    return {"message": "Email verified successfully"}
+# @router.post("/verify-otp")
+# async def verify_otp(data: OTPVerify, engine: AIOEngine = Depends(get_engine)):
+#     user = await engine.find_one(User, User.email == data.email)
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     
+#     if user.is_verified:
+#         return {"message": "User already verified"}
+#         
+#     if not user.otp or user.otp != data.otp:
+#         raise HTTPException(status_code=400, detail="Invalid OTP")
+#     
+#     if not user.otp_expires_at or user.otp_expires_at < datetime.utcnow():
+#         raise HTTPException(status_code=400, detail="OTP expired")
+#     
+#     user.is_verified = True
+#     user.otp = None
+#     user.otp_expires_at = None
+#     await engine.save(user)
+#     
+#     return {"message": "Email verified successfully"}
 
 @router.get("/profile-status", response_model=ProfileStatus)
 async def get_profile_status(user_id: str, engine: AIOEngine = Depends(get_engine)):
@@ -231,7 +231,7 @@ async def get_profile_status(user_id: str, engine: AIOEngine = Depends(get_engin
         if not user.industry_type: missing_fields.append("industry_type")
         
     return {
-        "is_verified": user.is_verified,
+        "is_verified": True, # Always true
         "is_profile_complete": len(missing_fields) == 0,
         "missing_fields": missing_fields
     }
@@ -262,10 +262,10 @@ async def update_profile(data: ProfileUpdate, user_id: str, engine: AIOEngine = 
     await engine.save(user)
     return {"message": "Profile updated successfully"}
 
-@router.post("/verify-email")
-async def verify_email_token(token: str):
-    # Keep this for backward compatibility if needed, but we use OTP now
-    return {"message": "Please use OTP verification"}
+# @router.post("/verify-email")
+# async def verify_email_token(token: str):
+#     # Keep this for backward compatibility if needed, but we use OTP now
+#     return {"message": "Please use OTP verification"}
 
 class UserProfile(BaseModel):
     id: str

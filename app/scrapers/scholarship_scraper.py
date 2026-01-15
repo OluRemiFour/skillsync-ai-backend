@@ -112,7 +112,9 @@ class ScholarshipScraper:
         logger.info(f"Starting Predator Scan for {student_profile.get('major')}")
         
         # 1. Scrape Source A
-        results_a = self.scrape_scholarships_com(student_profile.get('major', 'computer-science'))
+        # Use AI query if available, otherwise fallback to major
+        search_term = student_profile.get('ai_query', student_profile.get('major', 'computer-science'))
+        results_a = self.scrape_scholarships_com(search_term)
         
         # 2. Filter/Rank results (Mock logic)
         verified_results = []

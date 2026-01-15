@@ -12,7 +12,20 @@ class SkillAnalysisRequest(BaseModel):
 class SkillGapResponse(BaseModel):
     missing_skills: List[str]
     action_plan: List[str]
-    recommendations: List[str]
+    # recommendations: List[str]
+
+from app.core.recommendation_service import recommendation_service
+
+@router.post("/gap-analysis", response_model=SkillGapResponse)
+async def analyze_skill_gap(req: SkillAnalysisRequest):
+    result = await recommendation_service.analyze_skill_gap(
+        req.current_skills, 
+        req.target_role, 
+        req.major
+    )
+    if "error" in result and not result.get("missing_skills"):
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
 
 class VerifySkillRequest(BaseModel):
     skill_name: str

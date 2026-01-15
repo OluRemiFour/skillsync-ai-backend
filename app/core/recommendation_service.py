@@ -46,29 +46,31 @@ class RecommendationService:
         
         prompt = f"""
         Act as a career counselor. 
-        Create a learning path for a student with these skills: {', '.join(skills)}.
+        Create a detailed learning path for a student with these skills: {', '.join(skills)}.
         Their goal is: {goal}.
         
-        Return a valid JSON array of objects. Do not include any markdown formatting or code blocks.
-        Each step should have: 
-        - title
-        - description
-        - priority (High/Medium)
-        - estimated_weeks
-        - resource_link (a valid URL to a reputable course like Coursera, Udemy, or documentation)
+        Return a JSON array of objects.
+        Each object MUST have: 
+        - title (string): Name of the step
+        - description (string): What to learn
+        - priority (string): "High" or "Medium"
+        - estimated_weeks (number): Duration
+        - resource_link (string): A valid URL to a reputable course (Coursera, Udemy, etc.)
         """
         
-        max_retries = len(self.api_keys)
+        max_retries = len(self.api_keys) * 2 # Allow more retries if we have multiple keys
         attempts = 0
         
         while attempts < max_retries:
             try:
                 response = self.client.models.generate_content(
                     model=self.model_id,
-                    contents=prompt
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
                 )
-                clean_text = response.text.replace('```json', '').replace('```', '').strip()
-                return {"raw_response": clean_text}
+                return {"raw_response": response.text}
             except Exception as e:
                 error_str = str(e).lower()
                 # Check for rate limit or quota errors (429 or 403 sometimes implies quota)
@@ -84,5 +86,47 @@ class RecommendationService:
                 return {"error": str(e)}
         
         return {"error": "Failed to generate content after retries."}
+    
+    async def analyze_skill_gap(self, current_skills: list[str], target_role: str, major: str):
+        if not self.client:
+            return {
+                "missing_skills": [],
+                "action_plan": ["Configure AI Service to see recommendations"]
+            }
+        
+        prompt = f"""
+        Analyze the skill gap for a student with these skills: {', '.join(current_skills)}.
+        They are a {major} major targeting the role: {target_role}.
+        
+        Return a JSON object with:
+        - missing_skills (list of strings): Critical technical skills they likely lack.
+        - action_plan (list of strings): 3-5 high-level steps to bridge the gap.
+        
+        Return valid JSON only.
+        """
+        
+        max_retries = len(self.api_keys) * 2
+        attempts = 0
+        
+        while attempts < max_retries:
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_id,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
+                )
+                import json
+                return json.loads(response.text)
+            except Exception as e:
+                error_str = str(e).lower()
+                if "429" in error_str or "resource exhausted" in error_str or "quota" in error_str:
+                    if self._rotate_key():
+                        attempts += 1
+                        continue
+                return {"error": str(e), "missing_skills": [], "action_plan": []}
+        
+        return {"error": "Failed to analyze skills", "missing_skills": [], "action_plan": []}
 
 recommendation_service = RecommendationService()

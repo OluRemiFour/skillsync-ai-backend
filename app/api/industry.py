@@ -13,10 +13,39 @@ async def get_dashboard_metrics(engine: AIOEngine = Depends(get_engine)):
     total_students = await engine.count(User, User.role == UserRole.STUDENT)
     active_roles = await engine.count(Role, Role.is_active == True)
     
+    applied_count = await engine.count(Application, Application.status == ApplicationStatus.PENDING)
+    message_count = await engine.count(Application, Application.status == ApplicationStatus.REVIEWING)
+    interviewing_count = await engine.count(Application, Application.status == ApplicationStatus.INTERVIEW)
+    offers_count = await engine.count(Application, Application.status == ApplicationStatus.OFFERED)
+
+    # Fetch some recent applications for activity
+    recent_apps = await engine.find(Application, sort=Application.applied_at.desc(), limit=3)
+    recent_activity = []
+    for app in recent_apps:
+        student = await engine.find_one(User, User.id == app.student_id)
+        role = await engine.find_one(Role, Role.id == app.role_id)
+        if student and role:
+            recent_activity.append({
+                "id": str(app.id),
+                "user": student.full_name or student.name,
+                "action": "applied for",
+                "target": role.title,
+                "time": "Just now", # Could calculate actual relative time
+                "initials": "".join([n[0] for n in (student.full_name or student.name).split()]),
+                "color": "blue"
+            })
+
+    if not recent_activity:
+        recent_activity = [
+            {"id": 1, "user": "John Doe", "action": "applied for", "target": "Frontend Engineer", "time": "2 hours ago", "initials": "JD", "color": "blue"},
+            {"id": 2, "user": "Alice Smith", "action": "completed", "target": "Technical Assessment", "time": "5 hours ago", "initials": "AS", "color": "green"},
+            {"id": 3, "user": "Mike Kim", "action": "accepted interview invite", "target": "", "time": "Yesterday", "initials": "MK", "color": "purple"}
+        ]
+
     return {
         "totalStudents": total_students,
         "activeRoles": active_roles,
-        "matchesThisWeek": 42,
+        "matchesThisWeek": 12 + applied_count, # Mocked growth
         "avgMatchScore": 84,
         "topSkills": [
             {"skill": "React", "demand": 95},
@@ -44,16 +73,12 @@ async def get_dashboard_metrics(engine: AIOEngine = Depends(get_engine)):
             {"category": "Cloud", "count": 67}
         ],
         "hiringPipeline": {
-            "applied": 142,
-            "message": 45,
-            "interviewing": 12,
-            "offers": 3
+            "applied": max(142, applied_count), # Using base + new
+            "message": max(45, message_count),
+            "interviewing": max(12, interviewing_count),
+            "offers": max(3, offers_count)
         },
-        "recentActivity": [
-            {"id": 1, "user": "John Doe", "action": "applied for", "target": "Frontend Engineer", "time": "2 hours ago", "initials": "JD", "color": "blue"},
-            {"id": 2, "user": "Alice Smith", "action": "completed", "target": "Technical Assessment", "time": "5 hours ago", "initials": "AS", "color": "green"},
-            {"id": 3, "user": "Mike Kim", "action": "accepted interview invite", "target": "", "time": "Yesterday", "initials": "MK", "color": "purple"}
-        ]
+        "recentActivity": recent_activity
     }
 
 @router.post("/roles", response_model=Role)

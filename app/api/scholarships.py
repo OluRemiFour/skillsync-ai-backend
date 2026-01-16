@@ -34,8 +34,8 @@ async def trigger_scan(profile: dict):
         for item in results_json:
             db_item = ScholarshipCreate(
                 title=item.get('title', 'Unknown Scholarship'),
-                provider=item.get('location', 'Various'), # Mapping location to provider/details
-                amount=str(item.get('type', 'Varies')), # Using type as amount/type
+                provider=item.get('location', 'Various'), 
+                amount=str(item.get('type', 'Varies')), 
                 url=item.get('link', '#'),
                 description=f"{item.get('details', '')} | Deadline: {item.get('deadline', 'N/A')}",
                 deadline=item.get('deadline', 'Rolling'),

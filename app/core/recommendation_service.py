@@ -5,9 +5,9 @@ from google.genai import types
 
 class RecommendationService:
     def __init__(self):
-        # In a real app, use os.getenv("GEMINI_API_KEY")
-        # Using the provided key for now as requested
-        self.api_key = os.getenv("GEMINI_API_KEY", "AIzaSyCFlpwDlLCXZhBLiWmCVJwbP2FerIdysHE")
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY environment variable is not set")
         self.client = genai.Client(api_key=self.api_key)
         self.model_name = "gemini-2.5-flash"
 

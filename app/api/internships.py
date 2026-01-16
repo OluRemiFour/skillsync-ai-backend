@@ -41,11 +41,11 @@ async def trigger_scan(profile: dict):
             obj = ScholarshipCreate(
                 title=item.get('title', 'Untitled Opportunity'),
                 provider=item.get('location', 'Unknown Provider'),
-                amount=item.get('type', 'N/A'), # Using amount field for Type temporarily
+                amount=item.get('type', 'N/A'), 
                 url=item.get('link', '#'),
                 description=f"{item.get('details', '')} | Deadline: {item.get('deadline', 'N/A')}",
                 deadline=item.get('deadline'),
-                match_score=85 # Default high score for AI matches
+                match_score=85 
             )
             results.append(obj)
         

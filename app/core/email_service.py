@@ -42,7 +42,6 @@ class EmailService:
             print("Email service not configured. Reset Token:", token)
             return False
 
-        # In a real app, this would be a link to the frontend: https://skillsync.com/reset-password?token=XYZ
         reset_link = f"http://localhost:5173/reset-password?token={token}"
         
         message = Mail(

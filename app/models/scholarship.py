@@ -6,7 +6,7 @@ class ScholarshipBase(SQLModel):
     title: str
     provider: str
     amount: Optional[str] = None
-    deadline: Optional[datetime] = None
+    deadline: Optional[str] = None
     url: str
     description: Optional[str] = None
     match_score: Optional[int] = 0

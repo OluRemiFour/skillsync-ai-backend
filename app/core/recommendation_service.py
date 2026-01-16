@@ -21,10 +21,14 @@ class RecommendationService:
         prompt = f"""
         Search for 5 current, real-world scholarships and internships for a student studying {course} with skills in {skills}.
         
-        CRITICAL: Return ONLY a valid JSON array of objects. Do not include any conversational text, preamble, or markdown code blocks.
+        CRITICAL: Return ONLY a valid JSON array of objects.
         Each object MUST have these exact keys: 
         "title", "details", "link", "location", "type", "deadline".
-        "type" must be either 'Remote', 'Onsite', or 'Hybrid'.
+        
+        Deadline formatting:
+        - If a specific date is found, use 'Month DD, YYYY' format.
+        - If it's recurring or rolling, use 'Ongoing' or 'Rolling'.
+        - Keep it as a concise string.
         
         Example structure:
         [
@@ -79,21 +83,22 @@ class RecommendationService:
         Current Skills: {', '.join(skills)}.
         
         Guidelines for Content:
-        - **Roadmap Overview**: Write a 2-3 sentence inspiring executive summary. Use **bolding** for key transition points.
-        - **Milestones**: Provide 4-6 strategic phases.
-        - **Descriptions**: Use clear, actionable language. Focus on *why* this milestone matters. Use markdown (e.g., `**key terms**`) to highlight important concepts.
-        - **Resources**: Suggest 2-3 high-level topics or specific industry-standard tools/libraries.
-        - **Tone**: Professional, encouraging, and outcome-oriented.
+        - **Roadmap Overview**: A punchy, 2-sentence summary of the transformation journey.
+        - **Milestones**: Provide 5 strategic phases.
+        - **Descriptions**: Concise (max 3 sentences). Use **bolding** for key skills. 
+        - **Resources**: Exactly 3 specific, recognized learning resources (e.g., "MDN Docs", "Advanced React Patterns on Frontend Masters").
+        - **Icons**: Suggest a Lucide-React icon name for each phase (e.g., "Code", "Brain", "Layers", "Rocket", "Award").
         
         Return a JSON object with this exact structure:
         {{
-            "roadmap": "An inspiring summary of the journey.",
+            "roadmap": "A punchy summary.",
             "milestones": [
                 {{
-                    "title": "Phase Title (e.g., Foundations of X)",
-                    "description": "A concise description with **markdown bolding** for key skills.",
-                    "resources": ["Specific Topic/Tool 1", "Specific Topic/Tool 2"],
-                    "estimated_time": "e.g., 2-3 weeks"
+                    "title": "Phase Title",
+                    "description": "Concise description with **bold** highlights.",
+                    "resources": ["Resource 1", "Resource 2", "Resource 3"],
+                    "estimated_time": "e.g., 2 weeks",
+                    "icon": "IconName"
                 }}
             ]
         }}

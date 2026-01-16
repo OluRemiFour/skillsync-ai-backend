@@ -11,41 +11,57 @@ class RecommendationService:
         self.client = genai.Client(api_key=self.api_key)
         self.model_name = "gemini-2.5-flash"
 
-    def find_opportunities(self, course: str, skills: str) -> list[dict]:
+    async def find_opportunities(self, course: str, skills: str) -> list[dict]:
         """
         Search for scholarships and internships using Gemini 2.5 Flash with Google Search grounding.
+        Note: response_mime_type is not supported when using tools like Google Search.
         """
         print(f"Starting AI search for {course} with skills: {skills}... 🔍")
         
         prompt = f"""
-        Search for 5 current scholarships and internships for a student studying {course} 
-        with skills in {skills}. 
-        Return a JSON array of objects with these exact keys: 
+        Search for 5 current, real-world scholarships and internships for a student studying {course} with skills in {skills}.
+        
+        CRITICAL: Return ONLY a valid JSON array of objects. Do not include any conversational text, preamble, or markdown code blocks.
+        Each object MUST have these exact keys: 
         "title", "details", "link", "location", "type", "deadline".
         "type" must be either 'Remote', 'Onsite', or 'Hybrid'.
+        
+        Example structure:
+        [
+          {{"title": "...", "details": "...", "link": "...", "location": "...", "type": "...", "deadline": "..."}}
+        ]
         """
 
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                    response_mime_type="application/json"
+                    tools=[types.Tool(google_search=types.GoogleSearch())]
+                    # response_mime_type="application/json" is NOT supported with tools
                 )
             )
 
-            # Clean up the response text if necessary (usually not needed with response_mime_type)
             result_text = response.text.strip()
             
-            # Allow for potential markdown code block wrapping
-            if result_text.startswith("```json"):
-                result_text = result_text[7:]
-            if result_text.endswith("```"):
-                result_text = result_text[:-3]
-
-            data = json.loads(result_text)
-            return data
+            # Extract JSON from potential markdown blocks or text response
+            try:
+                if "```json" in result_text:
+                    result_text = result_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in result_text:
+                    result_text = result_text.split("```")[1].split("```")[0].strip()
+                
+                data = json.loads(result_text)
+                return data if isinstance(data, list) else []
+            except (json.JSONDecodeError, IndexError):
+                print(f"Failed to parse JSON directly. Attempting cleanup...")
+                # Fallback: find the first '[' and last ']'
+                start = result_text.find('[')
+                end = result_text.rfind(']') + 1
+                if start != -1 and end != 0:
+                    data = json.loads(result_text[start:end])
+                    return data if isinstance(data, list) else []
+                return []
 
         except Exception as e:
             print(f"\n❌ --- SEARCH FAILED ---")
@@ -59,34 +75,32 @@ class RecommendationService:
         print(f"Generating learning path for goal: {goal} with current skills: {skills}... 🎓")
         
         prompt = f"""
-        Act as an expert career counselor. Generate a detailed, personalized learning path for a student who wants to become a {goal}.
-        Current skills: {', '.join(skills)}.
+        Act as an elite career strategist and mentor. Generate a high-impact, personalized learning path for a candidate aiming to become a {goal}.
+        Current Skills: {', '.join(skills)}.
         
-        The learning path should include:
-        1. A brief roadmap overview.
-        2. A list of 4-6 specific milestones or modules.
-        3. For each milestone, provide:
-           - "title": Name of the milestone.
-           - "description": What to learn.
-           - "resources": A list of 2-3 specific topics or skills to focus on.
-           - "estimated_time": Approximate time to complete.
+        Guidelines for Content:
+        - **Roadmap Overview**: Write a 2-3 sentence inspiring executive summary. Use **bolding** for key transition points.
+        - **Milestones**: Provide 4-6 strategic phases.
+        - **Descriptions**: Use clear, actionable language. Focus on *why* this milestone matters. Use markdown (e.g., `**key terms**`) to highlight important concepts.
+        - **Resources**: Suggest 2-3 high-level topics or specific industry-standard tools/libraries.
+        - **Tone**: Professional, encouraging, and outcome-oriented.
         
         Return a JSON object with this exact structure:
         {{
-            "roadmap": "string",
+            "roadmap": "An inspiring summary of the journey.",
             "milestones": [
                 {{
-                    "title": "string",
-                    "description": "string",
-                    "resources": ["string", "string"],
-                    "estimated_time": "string"
+                    "title": "Phase Title (e.g., Foundations of X)",
+                    "description": "A concise description with **markdown bolding** for key skills.",
+                    "resources": ["Specific Topic/Tool 1", "Specific Topic/Tool 2"],
+                    "estimated_time": "e.g., 2-3 weeks"
                 }}
             ]
         }}
         """
 
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -96,6 +110,7 @@ class RecommendationService:
 
             result_text = response.text.strip()
             
+            # Robust JSON extraction
             if "```json" in result_text:
                 result_text = result_text.split("```json")[1].split("```")[0].strip()
             elif "```" in result_text:
@@ -116,22 +131,26 @@ class RecommendationService:
         print(f"Analyzing skill gap for {target_role} (Major: {major})... 📊")
         
         prompt = f"""
-        Analyze the skill gap for a student majoring in {major} who wants to become a {target_role}.
-        Current skills: {', '.join(current_skills)}.
+        Act as a technical recruiter and industry expert. Analyze the skill gap for a student majoring in {major} who is targeting a {target_role} role.
+        Current Skills: {', '.join(current_skills)}.
         
-        Identify:
-        1. Missing skills required for the role.
-        2. A step-by-step action plan to bridge the gap.
+        Requirements:
+        1. **Missing Skills**: List 3-5 critical technical or soft skills currently lacking.
+        2. **Action Plan**: Provide a numbered, step-by-step strategy to become job-ready. Each step should be one concise sentence.
+        
+        Formatting:
+        - Use clean, professional language.
+        - Ensure the output is ready for a high-end dashboard UI.
         
         Return a JSON object with this exact structure:
         {{
-            "missing_skills": ["string", "string"],
-            "action_plan": ["string", "string"]
+            "missing_skills": ["Skill Name 1", "Skill Name 2"],
+            "action_plan": ["Step 1 description", "Step 2 description"]
         }}
         """
 
         try:
-            response = self.client.models.generate_content(
+            response = await self.client.aio.models.generate_content(
                 model=self.model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(

@@ -27,7 +27,7 @@ async def trigger_scan(profile: dict):
         # Call the recommendation service
         skills_str = ", ".join(skills) if isinstance(skills, list) else str(skills)
         
-        results_json = recommendation_service.find_opportunities(course=major, skills=skills_str)
+        results_json = await recommendation_service.find_opportunities(course=major, skills=skills_str)
         
         # Convert JSON results to Scholarship objects
         results = []

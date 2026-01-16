@@ -52,5 +52,107 @@ class RecommendationService:
             print(f"Error Message: {str(e)}")
             return []
 
+    async def generate_learning_path(self, skills: list[str], goal: str) -> dict:
+        """
+        Generate a personalized learning path based on current skills and a career goal.
+        """
+        print(f"Generating learning path for goal: {goal} with current skills: {skills}... 🎓")
+        
+        prompt = f"""
+        Act as an expert career counselor. Generate a detailed, personalized learning path for a student who wants to become a {goal}.
+        Current skills: {', '.join(skills)}.
+        
+        The learning path should include:
+        1. A brief roadmap overview.
+        2. A list of 4-6 specific milestones or modules.
+        3. For each milestone, provide:
+           - "title": Name of the milestone.
+           - "description": What to learn.
+           - "resources": A list of 2-3 specific topics or skills to focus on.
+           - "estimated_time": Approximate time to complete.
+        
+        Return a JSON object with this exact structure:
+        {{
+            "roadmap": "string",
+            "milestones": [
+                {{
+                    "title": "string",
+                    "description": "string",
+                    "resources": ["string", "string"],
+                    "estimated_time": "string"
+                }}
+            ]
+        }}
+        """
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+
+            result_text = response.text.strip()
+            
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result_text)
+            return data
+
+        except Exception as e:
+            print(f"\n❌ --- GENERATION FAILED ---")
+            print(f"Error Message: {str(e)}")
+            return {"error": str(e), "roadmap": "Failed to generate roadmap", "milestones": []}
+
+    async def analyze_skill_gap(self, current_skills: list[str], target_role: str, major: str) -> dict:
+        """
+        Analyze the gap between current skills and target role requirements.
+        """
+        print(f"Analyzing skill gap for {target_role} (Major: {major})... 📊")
+        
+        prompt = f"""
+        Analyze the skill gap for a student majoring in {major} who wants to become a {target_role}.
+        Current skills: {', '.join(current_skills)}.
+        
+        Identify:
+        1. Missing skills required for the role.
+        2. A step-by-step action plan to bridge the gap.
+        
+        Return a JSON object with this exact structure:
+        {{
+            "missing_skills": ["string", "string"],
+            "action_plan": ["string", "string"]
+        }}
+        """
+
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                )
+            )
+
+            result_text = response.text.strip()
+            
+            if "```json" in result_text:
+                result_text = result_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in result_text:
+                result_text = result_text.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result_text)
+            return data
+
+        except Exception as e:
+            print(f"\n❌ --- ANALYSIS FAILED ---")
+            print(f"Error Message: {str(e)}")
+            return {"error": str(e), "missing_skills": [], "action_plan": []}
+
 # Singleton instance
 recommendation_service = RecommendationService()

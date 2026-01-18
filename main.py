@@ -39,6 +39,11 @@ app.include_router(skills.router, prefix="/api/skills", tags=["skills"])
 async def root():
     return {"message": "SkillSync API is running", "status": "active"}
 
-@app.get("/health")
+@app.get("/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "healthy"}
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    from fastapi import Response
+    return Response(status_code=204)

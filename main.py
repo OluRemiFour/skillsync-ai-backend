@@ -39,7 +39,7 @@ app.include_router(skills.router, prefix="/api/skills", tags=["skills"])
 async def root():
     return {"message": "SkillSync API is running", "status": "active"}
 
-@app.get("/health", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "healthy"}
 

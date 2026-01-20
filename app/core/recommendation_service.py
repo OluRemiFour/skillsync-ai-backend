@@ -3,13 +3,54 @@ import json
 from google import genai
 from google.genai import types
 
+from app.core.config import settings
+import random
+
 class RecommendationService:
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not set")
-        self.client = genai.Client(api_key=self.api_key)
+        # Collect available keys
+        self.api_keys = [
+            settings.GEMINI_API_KEY,
+            settings.GEMINI_API_KEY_1,
+            settings.GEMINI_API_KEY_2,
+            settings.GEMINI_API_KEY_3,
+            settings.GEMINI_API_KEY_4
+        ]
+        # Filter out empty keys
+        self.api_keys = [k for k in self.api_keys if k]
+        
+        if not self.api_keys:
+             # Fallback to os.getenv if settings fail or are empty
+             env_key = os.getenv("GEMINI_API_KEY")
+             if env_key:
+                 self.api_keys.append(env_key)
+
+        if not self.api_keys:
+            print("Warning: No GEMINI_API_KEYs found in settings or environment.")
+            # We don't raise error immediately to allow app to start, but methods will fail
+            self.api_key = ""
+        else:
+            self.api_key = self.api_keys[0]
+
+        # Initialize client with the first key (rotation logic can be added in methods)
+        if self.api_key:
+            self.client = genai.Client(api_key=self.api_key)
+        else:
+            self.client = None
+
         self.model_name = "gemini-2.5-flash"
+
+    def _rotate_client(self):
+        """Rotate to the next available API key"""
+        if not self.api_keys or len(self.api_keys) <= 1:
+            return
+        
+        # Move current key to end
+        current = self.api_keys.pop(0)
+        self.api_keys.append(current)
+        self.api_key = self.api_keys[0]
+        print(f"🔄 Rotating API Key... New key ends with ...{self.api_key[-4:] if len(self.api_key) > 4 else '****'}")
+        self.client = genai.Client(api_key=self.api_key)
 
     async def find_opportunities(self, course: str, skills: str) -> list[dict]:
         """
@@ -36,41 +77,57 @@ class RecommendationService:
         ]
         """
 
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    tools=[types.Tool(google_search=types.GoogleSearch())]
-                    # response_mime_type="application/json" is NOT supported with tools
-                )
-            )
+        # Retry logic with key rotation
+        max_retries = len(self.api_keys) if self.api_keys else 1
+        
+        for attempt in range(max_retries):
+            if not self.client:
+                 print("Error: No API keys available")
+                 return []
 
-            result_text = response.text.strip()
-            
-            # Extract JSON from potential markdown blocks or text response
             try:
-                if "```json" in result_text:
-                    result_text = result_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in result_text:
-                    result_text = result_text.split("```")[1].split("```")[0].strip()
-                
-                data = json.loads(result_text)
-                return data if isinstance(data, list) else []
-            except (json.JSONDecodeError, IndexError):
-                print(f"Failed to parse JSON directly. Attempting cleanup...")
-                # Fallback: find the first '[' and last ']'
-                start = result_text.find('[')
-                end = result_text.rfind(']') + 1
-                if start != -1 and end != 0:
-                    data = json.loads(result_text[start:end])
-                    return data if isinstance(data, list) else []
-                return []
+                response = await self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        tools=[types.Tool(google_search=types.GoogleSearch())]
+                        # response_mime_type="application/json" is NOT supported with tools
+                    )
+                )
 
-        except Exception as e:
-            print(f"\n❌ --- SEARCH FAILED ---")
-            print(f"Error Message: {str(e)}")
-            return []
+                result_text = response.text.strip()
+                
+                # Extract JSON from potential markdown blocks or text response
+                try:
+                    if "```json" in result_text:
+                        result_text = result_text.split("```json")[1].split("```")[0].strip()
+                    elif "```" in result_text:
+                        result_text = result_text.split("```")[1].split("```")[0].strip()
+                    
+                    data = json.loads(result_text)
+                    return data if isinstance(data, list) else []
+                except (json.JSONDecodeError, IndexError):
+                    print(f"Failed to parse JSON directly. Attempting cleanup...")
+                    # Fallback: find the first '[' and last ']'
+                    start = result_text.find('[')
+                    end = result_text.rfind(']') + 1
+                    if start != -1 and end != 0:
+                        data = json.loads(result_text[start:end])
+                        return data if isinstance(data, list) else []
+                    return []
+
+            except Exception as e:
+                error_str = str(e)
+                print(f"\n❌ --- SEARCH FAILED (Attempt {attempt + 1}/{max_retries}) ---")
+                print(f"Error Message: {error_str}")
+                
+                if "400" in error_str or "429" in error_str or "API key not valid" in error_str:
+                    self._rotate_client()
+                    continue
+                else:
+                    return []
+        
+        return []
 
     async def generate_learning_path(self, skills: list[str], goal: str) -> dict:
         """
@@ -104,30 +161,49 @@ class RecommendationService:
         }}
         """
 
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
+        # Retry logic with key rotation
+        max_retries = len(self.api_keys) if self.api_keys else 1
+        last_error = None
+        
+        for attempt in range(max_retries):
+            if not self.client:
+                 return {"error": "No API keys available", "roadmap": "Configuration Error", "milestones": []}
+
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
                 )
-            )
 
-            result_text = response.text.strip()
-            
-            # Robust JSON extraction
-            if "```json" in result_text:
-                result_text = result_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in result_text:
-                result_text = result_text.split("```")[1].split("```")[0].strip()
+                result_text = response.text.strip()
+                
+                # Robust JSON extraction
+                if "```json" in result_text:
+                    result_text = result_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in result_text:
+                    result_text = result_text.split("```")[1].split("```")[0].strip()
 
-            data = json.loads(result_text)
-            return data
+                data = json.loads(result_text)
+                return data
 
-        except Exception as e:
-            print(f"\n❌ --- GENERATION FAILED ---")
-            print(f"Error Message: {str(e)}")
-            return {"error": str(e), "roadmap": "Failed to generate roadmap", "milestones": []}
+            except Exception as e:
+                error_str = str(e)
+                print(f"\n❌ --- GENERATION FAILED (Attempt {attempt + 1}/{max_retries}) ---")
+                print(f"Error Message: {error_str}")
+                
+                # Check for 400 or 429 (Quota) errors specifically to trigger rotation
+                if "400" in error_str or "429" in error_str or "API key not valid" in error_str:
+                    self._rotate_client()
+                    last_error = e
+                    continue # Retry with new key
+                else:
+                    # Non-auth/quota error, probably prompt related
+                    return {"error": error_str, "roadmap": "Failed to generate roadmap", "milestones": []}
+        
+        return {"error": str(last_error), "roadmap": "All API keys failed", "milestones": []}
 
     async def analyze_skill_gap(self, current_skills: list[str], target_role: str, major: str) -> dict:
         """
@@ -154,29 +230,44 @@ class RecommendationService:
         }}
         """
 
-        try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json"
+        # Retry logic with key rotation
+        max_retries = len(self.api_keys) if self.api_keys else 1
+        
+        for attempt in range(max_retries):
+            if not self.client:
+                 return {"error": "No API keys available", "missing_skills": [], "action_plan": []}
+
+            try:
+                response = await self.client.aio.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
                 )
-            )
 
-            result_text = response.text.strip()
-            
-            if "```json" in result_text:
-                result_text = result_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in result_text:
-                result_text = result_text.split("```")[1].split("```")[0].strip()
+                result_text = response.text.strip()
+                
+                if "```json" in result_text:
+                    result_text = result_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in result_text:
+                    result_text = result_text.split("```")[1].split("```")[0].strip()
 
-            data = json.loads(result_text)
-            return data
+                data = json.loads(result_text)
+                return data
 
-        except Exception as e:
-            print(f"\n❌ --- ANALYSIS FAILED ---")
-            print(f"Error Message: {str(e)}")
-            return {"error": str(e), "missing_skills": [], "action_plan": []}
+            except Exception as e:
+                error_str = str(e)
+                print(f"\n❌ --- ANALYSIS FAILED (Attempt {attempt + 1}/{max_retries}) ---")
+                print(f"Error Message: {error_str}")
+
+                if "400" in error_str or "429" in error_str or "API key not valid" in error_str:
+                    self._rotate_client()
+                    continue
+                else:
+                    return {"error": error_str, "missing_skills": [], "action_plan": []}
+
+        return {"error": "All API keys failed", "missing_skills": [], "action_plan": []}
 
 # Singleton instance
 recommendation_service = RecommendationService()
